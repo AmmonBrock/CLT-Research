@@ -1,0 +1,6 @@
+There are too many features to feasible calculate interaction weights between all of the features across all of the layers in the network.
+We have to sample a subnetwork of features to work with, so we might as well make sure we do this smartly.
+Some reasons features may need to be discarded for our evaluations:
+- positional features (There are a large amount of features that only ever activate on the BOS token. If the token position is the only thing that matters, it is likely
+                        the autointerp explanation is erroneous)
+- unigram features (features that activate on specific tokens only -- don't actually mean anything)

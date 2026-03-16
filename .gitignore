@@ -1,0 +1,10 @@
+*.safetensors
+slurm*
+*.ipynb
+*.sh
+models/*
+scratch*
+*__pycache__*
+data/*
+bookmark.txt
+*.npy
