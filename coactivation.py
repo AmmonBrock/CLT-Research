@@ -57,7 +57,7 @@ def compute_coactivation_stats_for_layer(
         transcoder_set = "mntss/clt-gemma-2-2b-2.5M",
         dtype=torch.bfloat16,
         device = device,
-        local_files_only = True
+        local_files_only = True,
     )
     tokenizer = model.tokenizer
     # dataloader = get_fineweb_dataloader(tokenizer, data_path="data/fineweb_10bt_offline", batch_size=64, max_length=128)

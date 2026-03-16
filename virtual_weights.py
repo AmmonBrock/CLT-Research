@@ -158,6 +158,7 @@ class VirtualWeightNeighbors():
         target_layers = list(range(layer + 1, max_layer + 1))
 
 
+        
 
         for target_layer in target_layers:
             file_path = os.path.join(self.save_dir, f"{self.virtual_weights_prefix}{layer}_{target_layer}{self.virtual_weights_suffix}")
@@ -172,18 +173,26 @@ class VirtualWeightNeighbors():
 
         feature_slice = torch.stack(slices, dim=0)
         flattened_slice = feature_slice.flatten()
+
+        # Create a randomly shuffled version to use for tiebreaking in topk
+        rand_idx = torch.randperm(flattened_slice.shape[0])
+        shuffled_slice = flattened_slice[rand_idx]
+
         if method == "top":
-            topk_values, topk_indices = torch.topk(flattened_slice, k=k)
+            topk_values, topk_shuffled_indices = torch.topk(shuffled_slice, k=k)
             nonzero_mask = topk_values > 0
             topk_values = topk_values[nonzero_mask]
-            topk_indices = topk_indices[nonzero_mask]
+            topk_shuffled_indices = topk_shuffled_indices[nonzero_mask]
         elif method == "bottom":
-            topk_values, topk_indices = torch.topk(-flattened_slice, k=k)
+            topk_values, topk_shuffled_indices = torch.topk(-shuffled_slice, k=k)
             topk_values = -topk_values
         else:  # abs_bottom
-            abs_values = torch.abs(flattened_slice)
-            topk_values, topk_indices = torch.topk(-abs_values, k=k)
-            topk_values = flattened_slice[topk_indices]
+            abs_values = torch.abs(shuffled_slice)
+            _, topk_shuffled_indices = torch.topk(-abs_values, k=k)
+            topk_values = shuffled_slice[topk_shuffled_indices]
+
+        # Map the shuffled indices back to the original indices
+        topk_indices = rand_idx[topk_shuffled_indices]
 
         layer_offsets = topk_indices // feature_slice.shape[1]
         actual_target_layers = [target_layers[i] for i in layer_offsets.tolist()]
@@ -231,16 +240,26 @@ class VirtualWeightNeighbors():
 
         feature_slice = torch.stack(slices, dim=0)
         flattened_slice = feature_slice.flatten()
+
+        # Create a randomly shuffled version to use for tiebreaking in topk
+        rand_idx = torch.randperm(flattened_slice.shape[0])
+        shuffled_slice = flattened_slice[rand_idx]
         if method == "top":
-            topk_values, topk_indices = torch.topk(flattened_slice, k=k)
+            topk_values, topk_shuffled_indices = torch.topk(shuffled_slice, k=k)
+            nonzero_mask = topk_values > 0
+            topk_values = topk_values[nonzero_mask]
+            topk_shuffled_indices = topk_shuffled_indices[nonzero_mask]
         elif method == "bottom":
-            topk_values, topk_indices = torch.topk(-flattened_slice, k=k)
+            topk_values, topk_shuffled_indices = torch.topk(-shuffled_slice, k=k)
             topk_values = -topk_values
         else:  # abs_bottom
-            abs_values = torch.abs(flattened_slice)
-            topk_values, topk_indices = torch.topk(-abs_values, k=k)
-            topk_values = flattened_slice[topk_indices]
-        
+            abs_values = torch.abs(shuffled_slice)
+            _, topk_shuffled_indices = torch.topk(-abs_values, k=k)
+            topk_values = shuffled_slice[topk_shuffled_indices]
+
+        # Map the shuffled indices back to the original indices
+        topk_indices = rand_idx[topk_shuffled_indices]
+
         layer_offsets = topk_indices // feature_slice.shape[1]
         actual_source_layers = [source_layers[i] for i in layer_offsets.tolist()]
         feature_indices = (topk_indices % feature_slice.shape[1]).tolist()

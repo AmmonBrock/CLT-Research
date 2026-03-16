@@ -139,7 +139,7 @@ class LabelEvaluation:
 if __name__ == "__main__":
     label_evaluator = LabelEvaluation(weights_dir = weights_dir, sample_indices_path = sample_indices_path, prefix = prefix, suffix = suffix, tensor_prefix = tensor_prefix)
     # Got 20/30 correct with m = .05, layer = 12, feature_idx = 4
-    label_evaluator.take_quiz_for_feature(layer = 12, feature_idx = 6, m = .05, n_questions = 30)        
+    label_evaluator.take_quiz_for_feature(layer = 12, feature_idx = 10, m = .05, n_questions = 30)        
 
         
 
