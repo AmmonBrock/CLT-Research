@@ -8,11 +8,13 @@ import json
 from tabulate import tabulate
 
 
-def compute_virtual_weights(device = 'cuda', d_model = 2304, d_sae = 98304, layers_to_analyze = range(26),
+def compute_virtual_weights(device = 'cuda',
                             save_dir = "./virtual_weights",
                             clt_dir = "/home/ammonbro/CLT/models/round2/models--mntss--clt-gemma-2-2b-2.5M/snapshots/637a2f8b950fca8623e57658721484c28c166ca5",
                             sample_indices_path = "" # shape (num_layers, num_samples) of indices to sample from each layer. If None, uses all features.
                             ):
+
+    layers_to_analyze = range(26) # Changing this parameter is not built to be flexible yet
     torch.set_grad_enabled(False)
     os.makedirs(save_dir, exist_ok=True)
 
@@ -32,7 +34,9 @@ def compute_virtual_weights(device = 'cuda', d_model = 2304, d_sae = 98304, laye
             continue
         with safe_open(dec_path, framework="pt", device = device) as f:
             tensor_name = f.keys()[0]
-            w_dec_source = f.get_tensor(tensor_name).bfloat16()  # (d_sae, num_layers, d_model)
+            w_dec_source = f.get_tensor(tensor_name).bfloat16()  # (d_sae, num_layers - source_layer, d_model)
+        assert w_dec_source.shape[1] == (len(layers_to_analyze) - source_layer), f"Expected decoder to have shape (d_sae, {len(layers_to_analyze) - source_layer}, d_model), but got {w_dec_source.shape}"
+
 
         if sample_indices is not None:
             # Only keep the decoders corresponding to the sampled features for this source layer
@@ -60,7 +64,7 @@ def compute_virtual_weights(device = 'cuda', d_model = 2304, d_sae = 98304, laye
             
             # Sum decoders from source layer across intermediate layers
             # Layers in between: [source_layer, source_layer+1, ..., target_layer-1]
-            summed_decoders = w_dec_source[:, source_layer:target_layer, :].sum(dim = 1) # (d_sae_source, d_model)
+            summed_decoders = w_dec_source[:, :(target_layer - source_layer), :].sum(dim = 1) # (d_sae_source, d_model)
             
             
             # Virtual weight matrix: (d_sae_source, d_sae_target)
@@ -85,6 +89,35 @@ def compute_virtual_weights(device = 'cuda', d_model = 2304, d_sae = 98304, laye
 
     print("\nDone! Virtual weights savaed to folder (Indexed by source. Source = row, target = column).")
 
+def verify_decoder_shapes(device = "cuda", layers_to_analyze=range(26), sample_indices_path = "feature_filtering/sampled_features_small.npy", clt_dir="/home/ammonbro/CLT/models/round2/models--mntss--clt-gemma-2-2b-2.5M/snapshots/637a2f8b950fca8623e57658721484c28c166ca5"):
+    
+    torch.set_grad_enabled(False)
+
+    sample_indices = torch.from_numpy(np.load(sample_indices_path)) if sample_indices_path != "" else None
+
+    # For each pair of layers, compute all feature-to-feature virtual weights
+    for source_layer in layers_to_analyze:
+        targets_left = [t for t in layers_to_analyze if t > source_layer]
+
+        # Get the decoder from this source layer to all future layers
+        dec_path = os.path.join(clt_dir, f"W_dec_{source_layer}.safetensors")
+        if not os.path.exists(dec_path):
+            print(f"Decoder file for source layer {source_layer} not found at {dec_path}. Skipping.")
+            continue
+        with safe_open(dec_path, framework="pt", device = device) as f:
+            tensor_name = f.keys()[0]
+            w_dec_source = f.get_tensor(tensor_name).bfloat16()  # (d_sae, num_layers, d_model)
+
+        print(w_dec_source.shape)
+
+
+        del w_dec_source
+        torch.cuda.empty_cache()
+
+
+
+
+    print("\nDone! Virtual weights savaed to folder (Indexed by source. Source = row, target = column).")
 class VirtualWeightNeighbors():
     def __init__(self, save_dir = "./virtual_weights", sample_indices_path = "feature_filtering/sampled_features_small.npy", prefix = "weight_", suffix = None, tensor_prefix = "weight_"):
         """Class to load and query weights between features in different layers. 
@@ -177,7 +210,7 @@ class VirtualWeightNeighbors():
         # Create a randomly shuffled version to use for tiebreaking in topk
         rand_idx = torch.randperm(flattened_slice.shape[0])
         shuffled_slice = flattened_slice[rand_idx]
-
+        k = min(k, shuffled_slice.shape[0])  # In case there are fewer than k features total
         if method == "top":
             topk_values, topk_shuffled_indices = torch.topk(shuffled_slice, k=k)
             nonzero_mask = topk_values > 0
@@ -244,6 +277,7 @@ class VirtualWeightNeighbors():
         # Create a randomly shuffled version to use for tiebreaking in topk
         rand_idx = torch.randperm(flattened_slice.shape[0])
         shuffled_slice = flattened_slice[rand_idx]
+        k = min(k, shuffled_slice.shape[0])  # In case there are fewer than k features total
         if method == "top":
             topk_values, topk_shuffled_indices = torch.topk(shuffled_slice, k=k)
             nonzero_mask = topk_values > 0
@@ -270,7 +304,7 @@ class VirtualWeightNeighbors():
         
         return result
         
-    def query_features(self, queries, index_map_path="data/feature_labels/feature_index_map.json"):
+    def query_features(self, queries, index_map_path="/home/ammonbro/CLT/data/feature_labels/feature_index_map.json"):
         """
         Takes a list of (layer, feature_idx) tuples and returns a Pandas DataFrame 
         containing only the requested features.
@@ -308,7 +342,7 @@ class VirtualWeightNeighbors():
         
         for file_path, f_indices in file_to_queries.items():
             # Load the specific file
-            df = pd.read_json(os.path.join("data", file_path), lines=True, compression='gzip')
+            df = pd.read_json(os.path.join("/home/ammonbro/CLT/data", file_path), lines=True, compression='gzip')
             
             # Filter down to just the requested feature indices
             filtered_df = df[df['index'].isin(f_indices)]
@@ -415,22 +449,10 @@ class VirtualWeightNeighbors():
 
 
 if __name__ == "__main__":
-    # compute_virtual_weights(sample_indices_path = "feature_filtering/sampled_features_small.npy")
-
-    # vwn = VirtualWeightNeighbors(sample_indices_path = "feature_filtering/sampled_features_small.npy", save_dir = "./virtual_weights")
-    # k_downstream = vwn.get_k_downstream_neighbors(layer=0, feature_idx=0, k=5, method="top", max_layer=25, index_in_sampled=True)
-    # k_downstream_original = vwn.get_k_downstream_neighbors(layer=0, feature_idx=83, k=5, method="top", max_layer=25, index_in_sampled=False)
-
-    # k_upstream = vwn.get_k_upstream_neighbors(layer=12, feature_idx=0, k=5, method="top", min_layer=0, index_in_sampled=True)
-    # k_upstream_original = vwn.get_k_upstream_neighbors(layer=12, feature_idx=7, k=5, method="top", min_layer=0, index_in_sampled=False)
+    compute_virtual_weights(sample_indices_path = "feature_filtering/sampled_features_small.npy")
 
 
-    # print("k_downstream (sampled indices):", k_downstream)
-    # print("k_downstream (original indices):", k_downstream_original)
-    # print("k_upstream (sampled indices):", k_upstream)
-    # print("k_upstream (original indices):", k_upstream_original)
-
-    layer = 12
-    feature_idx = 100
-    vwn = VirtualWeightNeighbors(save_dir = "twera_small_sample_12M", sample_indices_path = "feature_filtering/sampled_features_small.npy", prefix = "twera_", suffix = ".safetensors", tensor_prefix = "TWERA_")
-    vwn.examine(layer, feature_idx, k=10, index_in_sampled = True)
+    # layer = 12
+    # feature_idx = 100
+    # vwn = VirtualWeightNeighbors(save_dir = "twera_small_sample_12M", sample_indices_path = "feature_filtering/sampled_features_small.npy", prefix = "twera_", suffix = ".safetensors", tensor_prefix = "TWERA_")
+    # vwn.examine(layer, feature_idx, k=10, index_in_sampled = True)

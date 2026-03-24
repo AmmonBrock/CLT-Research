@@ -149,6 +149,8 @@ def compute_coactivation_stats_for_layer(
         sampled_feature_activations = sparse_features.to_dense()
 
         expected_activations += sampled_feature_activations[source_layer].sum(dim=0).float()
+        total_tokens += (attention_mask.sum().item() - batch_size) # Exclude BOS tokens
+
 
         # Compute co-activations from source_layer to all future target layers
         target_slice = slice(source_layer + 1, max_target_layer + 1)
@@ -167,7 +169,7 @@ def compute_coactivation_stats_for_layer(
             expected_indicator_coactivations[key] += ind_coacts_batch[i].float()
         del src, targets, coacts_batch, indicator, ind_coacts_batch, sampled_feature_activations
         torch.cuda.empty_cache()
-        total_tokens += (attention_mask.sum().item() - batch_size) # Exclude BOS tokens
+        
 
     end = time.time()
     
@@ -277,75 +279,6 @@ def compute_ERA_weights(virtual_weights_path="./virtual_weights",
             print(f"  Layer {source_layer} → {target_layer}: Mean ERA = {ERA.abs().mean():.6f}")
             save_file({f"ERA_{source_layer}_{target_layer}": ERA.half().cpu()}, f"{save_path}/era_{source_layer}_{target_layer}.safetensors")
 
-    
-
-def get_k_neighbors_with_global_weights(layer, feature_idx, k=100, method="top",
-                                       weight_type="twera",
-                                       weights_path=None,
-                                       max_layer=19, min_layer=0,
-                                       direction="downstream"):
-    """
-    Get k most connected features using global weights (ERA or TWERA).
-    
-    Args:
-        layer: Source (downstream) or target (upstream) layer
-        feature_idx: Feature index in that layer
-        k: Number of neighbors to return
-        method: "top", "bottom", or "abs_bottom"
-        weight_type: "virtual", "era", or "twera"
-        weights_path: Path to weights file (auto-inferred if None)
-        max_layer: Maximum layer to consider (for downstream)
-        min_layer: Minimum layer to consider (for upstream)
-        direction: "downstream" or "upstream"
-    """
-    if weights_path is None:
-        if weight_type == "virtual":
-            weights_path = "./virtual_weights.safetensors"
-        elif weight_type == "era":
-            weights_path = "./era_weights.safetensors"
-        elif weight_type == "twera":
-            weights_path = "./twera_weights.safetensors"
-        else:
-            raise ValueError(f"Unknown weight_type: {weight_type}")
-    
-    if direction == "downstream":
-        # Load weights from this layer to downstream layers
-        weight_list = load_virtual_weights_from_layer(
-            path=weights_path, layer=layer, max_layer=max_layer
-        )
-        stacked = torch.stack(weight_list, dim=0)
-        feature_slice = stacked[:, feature_idx, :]
-        offset = layer + 1
-    else:  # upstream
-        # Load weights from upstream layers to this layer
-        weight_list = load_virtual_weights_to_layer(
-            path=weights_path, layer=layer, min_layer=min_layer
-        )
-        stacked = torch.stack(weight_list, dim=0)
-        feature_slice = stacked[:, :, feature_idx]
-        offset = min_layer
-    
-    flattened_slice = feature_slice.flatten()
-    
-    if method == "top":
-        topk_values, topk_indices = torch.topk(flattened_slice, k=k)
-    elif method == "bottom":
-        topk_values, topk_indices = torch.topk(-flattened_slice, k=k)
-        topk_values = -topk_values
-    else:  # abs_bottom
-        abs_values = torch.abs(flattened_slice)
-        topk_values, topk_indices = torch.topk(-abs_values, k=k)
-        topk_values = flattened_slice[topk_indices]
-    
-    if direction == "downstream":
-        target_layers = topk_indices // feature_slice.shape[1] + offset
-        feature_indices = topk_indices % feature_slice.shape[1]
-    else:
-        source_layers = topk_indices // feature_slice.shape[1] + offset
-        feature_indices = topk_indices % feature_slice.shape[1]
-        target_layers = source_layers
-    
-    return list(zip(target_layers.tolist(), feature_indices.tolist(), topk_values.tolist()))
 
 def main():
     parser = argparse.ArgumentParser(description="Compute coactivation stats for a specific layer.")
@@ -355,4 +288,5 @@ def main():
     
 
 if __name__ == "__main__":
-    main()
+    # main()
+    compute_TWERA_weights(virtual_weights_path = "./virtual_weights", coactivation_path = "./fineweb_feature_stats/small_coactivations_150M", save_path = "./twera_small_sample_150M", layers_to_analyze=range(26))

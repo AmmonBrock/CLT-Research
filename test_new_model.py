@@ -1,7 +1,12 @@
-from local_load import get_model_and_tokenizer
-from dataloading import get_dummy_dataloader
-from gather_activations import gather_clt_activations
 import torch
+
+import os
+
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ["HF_DATASETS_OFFLINE"] = "1"
+os.environ["HF_HUB_CACHE"] = "/home/ammonbro/CLT/models/round2" 
+
 from circuit_tracer import ReplacementModel
 
 device = "cuda"
