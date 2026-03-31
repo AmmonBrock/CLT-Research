@@ -1,0 +1,10 @@
+{
+    "n_samples_per_layer": 300,
+    "sample_method": "filtered_proportional",
+    "activation_text_corpus": "fineweb",
+    "n_tokens_act_freq": 30000,
+    "start_index_sample_text": 0,
+    "positional_strength_threshold": 0.9,
+    "positional_count_threshold": 0.8,
+    "dead_threshold": 10
+}

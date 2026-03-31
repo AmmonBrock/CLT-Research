@@ -14,7 +14,7 @@ os.environ["HF_DATASETS_OFFLINE"] = "1"
 os.environ["HF_HUB_CACHE"] = "/home/ammonbro/CLT/models/round2" 
 
 from circuit_tracer import ReplacementModel
-from dataloading import get_fineweb_dataloader
+from CLT.activations.dataloading import get_fineweb_dataloader
 
 
 

@@ -1,0 +1,40 @@
+##################################################################
+###################### Sample Parameters #########################
+##################################################################
+
+n_samples_per_layer: 300
+sample_method: "filtered_proportional" #Options: "filtered_proportional", "proportional", "uniform", "filtered_uniform"
+network_name: "template_network"
+compute_activations: false
+
+# Gathering activations before sampling
+activation_text_corpus: "fineweb" # Options: "fineweb", "dummy"
+n_tokens_act_freq: 30_000
+start_index_sample_text: 0
+
+# Filtering features
+positional_strength_threshold: 0.9
+positional_count_threshold: 0.8
+dead_threshold: 10
+
+
+################################################################
+##################### Weight Parameters ########################
+################################################################
+
+coactivation_text_corpus: "fineweb" # Options: "fineweb", "dummy"
+start_index_coact_text: null
+n_tokens_coacts: 30_000
+to_compute: # Options: "virtual", "coactivations", "twera", "era"
+  - "virtual"
+  - "coactivations"
+  - "twera"
+
+
+##################################################################
+##################### Project Parameters #########################
+##################################################################
+model_storage_absolute: "/home/ammonbro/CLT/models/round2"
+study_model_name: "google/gemma-2-2b"
+feature_tool_name: "mntss/clt-gemma-2-2b-2.5M"
+device: "cuda"
