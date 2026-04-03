@@ -5,6 +5,9 @@ import torch
 from activations.feature_activations import compute_feature_position_stats
 import os
 from matplotlib import pyplot as plt
+import argparse
+from pathlib import Path
+from configs.config_data import NetworkConfig
 
 
 def plot_activation_distribution(config, sampled_features = None, features_to_exclude = None, layer = None):
@@ -48,6 +51,7 @@ def plot_activation_distribution(config, sampled_features = None, features_to_ex
         # Plot distribution of activations for all features
         activation_frequencies_to_plot = {layer: counts[layer, :] / config.n_tokens_act_freq for layer in range(config.n_layers)}
 
+    os.makedirs(config.network_dir / "figures", exist_ok=True)
     # Plot log10 distribution in subplots if necessary
     if layer is not None:
         plt.figure(figsize=(8, 6))
@@ -95,14 +99,13 @@ def sample_pipeline(config):
     plot_activation_distribution(config, features_to_exclude=features_to_exclude)
 
     
-
+    sampled_features = np.zeros((0, config.n_samples_per_layer), dtype = np.int64)
     if 'proportional' in config.sample_method:
         print("Sampling proportionally", flush = True)
         activation_count_path = config.feature_stats_on_corpus_dir / "feature_activation_counts.safetensors"
         activation_count_tensors = load_file(activation_count_path)
         counts = activation_count_tensors["activation_counts"] # Shape: (config.n_layers, config.features_per_layer)
 
-        sampled_features = np.zeros((0, config.n_samples_per_layer), dtype = np.int64)
         for layer in range(config.n_layers):
             print(f"Sampling layer {layer}...", flush = True)
             available_indices = np.setdiff1d(np.arange(config.features_per_layer), exclude_indices[exclude_layers == layer])
@@ -130,5 +133,17 @@ def sample_pipeline(config):
     np.save(config.network_dir / "sampled_features.npy", sampled_features)
     return True
     
-    
+def main():
+    parser = argparse.ArgumentParser(description="Specify config file for feature sampling.")
+    parser.add_argument("--config", type=str, required=True, help="Path to YAML config file.")
+    args = parser.parse_args()
+    clt_dir = Path(__file__).resolve().parent.parent
+    config_path = clt_dir / "configs" / args.config
+    config = NetworkConfig.from_yaml(config_path)
+    config.validate_params()
+    sample_pipeline(config)
+    config.lock_sample_params()
 
+
+if __name__ == "__main__":
+    main()

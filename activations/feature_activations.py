@@ -31,6 +31,7 @@ def compute_feature_position_stats(config):
     # Get the tokenizer
     cache_dir = os.environ["HF_HUB_CACHE"]
     snapshot_paths = glob.glob(f"{cache_dir}/models--{config.study_model_name.replace('/', '--')}/snapshots/*/")
+    assert len(snapshot_paths) > 0, f"No snapshots found for model {config.study_model_name} in cache directory {cache_dir}. Please make sure the model is downloaded and the path is correct."
     absolute_model_path = snapshot_paths[0]
     tokenizer = AutoTokenizer.from_pretrained(absolute_model_path, local_files_only=True)
 
@@ -102,7 +103,7 @@ def compute_feature_position_stats(config):
         sparse_counts = torch.sparse_coo_tensor(new_indices, ones_values, size=new_shape).coalesce()
         positional_counts += sparse_counts.to_dense()
 
-        total_tokens += attention_mask.sum().item()
+        total_tokens += attention_mask.sum().item() - batch_size # Exclude BOS tokens
 
     activation_counts = positional_counts.sum(dim=1) # shape (num_layers, d_sae)
     end = time.time()

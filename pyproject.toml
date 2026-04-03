@@ -17,6 +17,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "safetensors>=0.7.0",
     "scipy>=1.17.1",
+    "submitit>=1.5.4",
     "tabulate>=0.10.0",
     "torch>=2.10.0",
     "transformers>=4.57.3",

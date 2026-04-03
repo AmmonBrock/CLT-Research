@@ -58,19 +58,14 @@ class NetworkConfig(BaseModel):
             act_examples = (self.n_tokens_act_freq // self.max_tokens_activation) + (1 if self.n_tokens_act_freq % self.max_tokens_activation != 0 else 0)
             self.start_index_coact_text = act_examples + self.start_index_sample_text
 
-
-
-
         if self.compute_activations == False:
             assert os.path.exists(self.feature_stats_on_corpus_dir/ "feature_positional_counts.safetensors"), "Activation computation is set to False but can't find feature_positional_counts"
             assert os.path.exists(self.feature_stats_on_corpus_dir/ "feature_positional_strengths.safetensors"), "Activation computation is set to False but can't find feature_positional_strengths"
             assert os.path.exists(self.feature_stats_on_corpus_dir/ "feature_activation_counts.safetensors"), "Activation computation is set to False but can't find feature_activation_counts"
-        else:
-            print(self.feature_stats_on_corpus_dir)
-            assert not os.path.exists(self.feature_stats_on_corpus_dir/ "feature_positional_counts.safetensors"), "Activation computation is set to True but found existing feature_positional_counts. Rename or delete the file to avoid accidental overwriting"
-            assert not os.path.exists(self.feature_stats_on_corpus_dir/ "feature_positional_strengths.safetensors"), "Activation computation is set to True but found existing feature_positional_strengths. Rename or delete the file to avoid accidental overwriting"
-            assert not os.path.exists(self.feature_stats_on_corpus_dir/ "feature_activation_counts.safetensors"), "Activation computation is set to True but found existing feature_activation_counts. Rename or delete the file to avoid accidental overwriting"
-        
+        elif not (self.network_dir / "sampled_features.npy").exists(): # It's okay for compute_activations to be True if sampled_features.npy already exists since we will skip the compute_activations step in that case. This way the config can be initialized for steps after the sampling is complete
+            assert not os.path.exists(self.feature_stats_on_corpus_dir/ "feature_positional_counts.safetensors"), f"Activation computation is set to True but found existing feature_positional_counts. network_dir = {self.network_dir}. path = {self.network_dir / 'sampled_features.npy'}"
+            assert not os.path.exists(self.feature_stats_on_corpus_dir/ "feature_positional_strengths.safetensors"), "Activation computation is set to True but found existing feature_positional_strengths."
+            assert not os.path.exists(self.feature_stats_on_corpus_dir/ "feature_activation_counts.safetensors"), "Activation computation is set to True but found existing feature_activation_counts."
 
         # Check the logic for what we are computing based on the paths that already exist
         network_already_exists = os.path.exists(self.network_dir)
@@ -78,14 +73,15 @@ class NetworkConfig(BaseModel):
 
             # Check that requested computations are compatible with what already exists
             for item in self.to_compute:
-                if item == "virtual": assert not os.path.exists(self.virtual_weight_dir), f"Virtual weights for network {self.network_name} already exist but to_compute contains 'virtual'. If you want to use the existing virtual weights, remove 'virtual' from to_compute. If not, you may have to manually delete the folder, as overwriting files from configuration is prohibited."
-                if item == "coactivations": assert not os.path.exists(self.coacts_dir), f"Coactivations for network {self.network_name} already exist but to_compute contains 'coactivations'. If you want to use the existing coactivations, remove 'coactivations' from to_compute. If not, you may have to manually delete the folder, as overwriting files from configuration is prohibited."
+                # The compute_virtual_weights function will check for the existence of each virtual weight file. If they all exist, it will skip the computation. If any are missing, it will compute what is missing.
+                # The compute_coactivation_stats_for_layer function. will check the existence of the coactivation stats file for that layer. This allows us to re-run the computation if not all of the layers were completed.
+
                 if item == "twera":
-                    assert not os.path.exists(self.twera_dir), f"TWERA for network {self.network_name} already exist but to_compute contains 'twera'. If you want to use the existing TWERA, remove 'twera' from to_compute. If not, you may have to manually delete the folder, as overwriting files from configuration is prohibited."
+                    # The compute_twera_weights function will check for the existence of each TWERA weight file and not overwrite it
                     assert "virtual" in self.to_compute or os.path.exists(self.virtual_weight_dir), f"TWERA computation requires virtual weights. Make sure to add 'virtual' to to_compute or that virtual weights already exist for this network."
                     assert "coactivations" in self.to_compute or os.path.exists(self.coacts_dir), f"TWERA computation requires coactivations. Make sure to add 'coactivations' to to_compute or that coactivations already exist for this network."
                 if item == "era":
-                    assert not os.path.exists(self.era_dir), f"ERA for network {self.network_name} already exist but to_compute contains 'era'. If you want to use the existing ERA, remove 'era' from to_compute. If not, you may have to manually delete the folder, as overwriting files from configuration is prohibited."
+                    # The compute_era_weights function will check for the existence of each ERA weight file and not overwrite it
                     assert "virtual" in self.to_compute or os.path.exists(self.virtual_weight_dir), f"ERA computation requires virtual weights. Make sure to add 'virtual' to to_compute or that virtual weights already exist for this network."
                     assert "coactivations" in self.to_compute or os.path.exists(self.coacts_dir), f"ERA computation requires coactivations. Make sure to add 'coactivations' to to_compute or that coactivations already exist for this network."
         else:

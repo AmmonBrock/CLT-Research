@@ -72,7 +72,7 @@ def compute_virtual_weights(device = 'cuda',
             V = torch.einsum("sm,tm->st", summed_decoders, target_encoders)  # (d_sae_source, d_model) @ (d_model, d_sae_target) = (d_sae_source, d_sae_target)
 
             
-            print(f"  Shape: {V.shape}, Mean abs value: {V.abs().mean():.4f}")
+            print(f"Shape: {V.shape}, Mean abs value: {V.abs().mean():.4f}")
             print(f"Saving virtual weights from source layer {source_layer} to target layer {target_layer}...")
             save_file({f"weight_{source_layer}_{target_layer}": V.cpu()}, save_path)
 

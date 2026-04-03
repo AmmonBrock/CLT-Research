@@ -2,14 +2,14 @@
 ###################### Sample Parameters #########################
 ##################################################################
 
-n_samples_per_layer: 300
+n_samples_per_layer: 1000
 sample_method: "filtered_proportional" #Options: "filtered_proportional", "proportional", "uniform", "filtered_uniform"
 network_name: "template_network"
-compute_activations: false
+compute_activations: true
 
 # Gathering activations before sampling
 activation_text_corpus: "fineweb" # Options: "fineweb", "dummy"
-n_tokens_act_freq: 30_000
+n_tokens_act_freq: 120_000
 start_index_sample_text: 0
 
 # Filtering features

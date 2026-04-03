@@ -65,7 +65,6 @@ def view_expected(source):
     with safe_open(f"fineweb_feature_stats/small_coactivations_150M/coactivation_stats_layer_{source}.safetensors", framework="pt") as f:
         expected = f.get_tensor(f"E_a_{source}")
     print(expected)
-# Bug found and fixed. coactivation_stats_layer_25.safetensors is now being recomputed
 
 # How many nonzero weights per feature do we have on each layer?
 
