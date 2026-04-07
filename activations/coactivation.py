@@ -14,7 +14,8 @@ import glob
 
 
 
-def compute_coactivation_stats_for_layer(config, source_layer):
+def compute_coactivation_stats_for_layer(config, source_layer, mins_until_timeout):
+    real_start = time.time()
 
     #Configure inputs
     device = config.device
@@ -54,7 +55,7 @@ def compute_coactivation_stats_for_layer(config, source_layer):
         device = device,
         local_files_only = True,
         tokenizer = tokenizer)
-    dataloader = get_dataloader(tokenizer, activation = True, config = config)
+    dataloader = get_dataloader(tokenizer, activation = False, config = config)
     clt = model.transcoders
 
     # Storage for statistics
@@ -68,12 +69,33 @@ def compute_coactivation_stats_for_layer(config, source_layer):
     hook_name_base = clt.feature_input_hook
     hook_names = [f"blocks.{layer}.{hook_name_base}" for layer in range(clt.n_layers)]
 
-    start = time.time()
+    start = -1
+    total_batches = len(dataloader)
     for batch_idx, batch in enumerate(dataloader):
         
         # Get the inputs from the batch object
         if batch_idx % 100 == 0:
             print(f"Processing batch {batch_idx+1}/{len(dataloader)}...", flush = True)
+
+        if batch_idx % 1000 == 5:
+            # Logic to potentially cancel the job early if it's being too slow
+            end = time.time()
+            if start > 0:
+                lap_time = end - start
+                total_time = end - real_start
+                time_per_batch_lap = (lap_time / 1000.)/60.
+                time_per_batch_total = (total_time / batch_idx)/60.
+                
+                remaining_batches = total_batches - batch_idx
+                lap_remaining_time_estimate = time_per_batch_lap * remaining_batches
+                total_remaining_time_estimate = time_per_batch_total * remaining_batches
+
+                true_remaining_time = mins_until_timeout - ((total_time / 60.)) - 10.
+                if (lap_remaining_time_estimate > true_remaining_time) and (total_remaining_time_estimate > true_remaining_time):
+                    # Raise an error to cancel the job and avoid wasting resources
+                    raise TimeoutError(f"Estimated remaining time ({lap_remaining_time_estimate:.2f} mins by lap time, {total_remaining_time_estimate:.2f} mins by total time) exceeds the provided timeout threshold ({true_remaining_time:.2f} mins). Cancelling job to avoid wasting resources.")
+        
+            start = time.time()
         input_ids = batch['input_ids'].to(device)
         attention_mask = batch['attention_mask'].to(device) 
         batch_size, seq_len = input_ids.shape  
@@ -192,13 +214,14 @@ def main():
     parser = argparse.ArgumentParser(description="Compute coactivation stats for a specific layer.")
     parser.add_argument("--source_layer", type=int, required = True, help="The layer for which to compute coactivation stats.")
     parser.add_argument("--config", type=str, required = True, help="Name of config yaml file")
+    parser.add_argument("--mins", type=int, required = True, help="Time in minutes until the job times out" )
     args = parser.parse_args()
     clt_dir = Path(__file__).resolve().parent.parent
     config_path = clt_dir / "configs" / args.config
     config = NetworkConfig.from_yaml(config_path)
     config.validate_params()
     source_layer = args.source_layer
-    compute_coactivation_stats_for_layer(config, source_layer)
+    compute_coactivation_stats_for_layer(config, source_layer, args.mins)
     config.lock_weight_params()
     
 

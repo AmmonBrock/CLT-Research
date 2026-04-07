@@ -165,7 +165,7 @@ def global_weights_script(config, config_path):
     log_dir_name = config_path.split('.')[0]
     slurm_time, mem_gb = estimate_global_time_and_memory(config)
     script = f"""#!/bin/bash
-#SBATCH --job-name=clt_step4
+#SBATCH --job-name=step4
 #SBATCH --time={slurm_time}
 #SBATCH --mem={mem_gb}G
 #SBATCH --output=logs/{log_dir_name}/global_weights_%j.out
@@ -182,7 +182,7 @@ def sample_script(config, config_path):
     
     
         step1 = f"""#!/bin/bash
-#SBATCH --job-name=clt_step1
+#SBATCH --job-name=step1
 #SBATCH --time={format_slurm_time(mins_1)}
 #SBATCH --gpus=h200:1
 #SBATCH --mem=64G
@@ -191,7 +191,7 @@ uv run -m sample.sample_features --config {config_path}
 """
     else:
         step1 = f"""#!/bin/bash
-#SBATCH --job-name=clt_step1
+#SBATCH --job-name=step1
 #SBATCH --time={format_slurm_time(15)}
 #SBATCH --mem=8G
 #SBATCH --output=logs/{log_dir_name}/sampling_%j.out
@@ -205,7 +205,7 @@ def virtual_weight_script(config, config_path):
     if mins is None:
         return None
     step2 = f"""#!/bin/bash
-#SBATCH --job-name=clt_step2
+#SBATCH --job-name=step2
 #SBATCH --time={format_slurm_time(mins)}
 #SBATCH --gpus=h200:1
 #SBATCH --mem=32G
@@ -233,19 +233,32 @@ def coactivation_script(config, config_path):
     
 
 
-
+    # The --exclude command is specific to my compute setup
     step3 = f"""#!/bin/bash
-#SBATCH --job-name=clt_step3
+#SBATCH --job-name=step3
 #SBATCH --time={format_slurm_time(base_mins)}
+#SBATCH --exclude=m13h-2-1,m13h-1-2
 #SBATCH --gpus=h200:1
 #SBATCH --mem=64G
-#SBATCH --cpus-per-task=2
-#SBATCH --array={array_string}%5
+#SBATCH --cpus-per-task=8
+#SBATCH --array={array_string}%3
 #SBATCH --output=logs/{log_dir_name}/coactivations_%A_%a.out
-uv run -m activations.coactivation --config {config_path} --source_layer $SLURM_ARRAY_TASK_ID
+uv run -m activations.coactivation --config {config_path} --source_layer $SLURM_ARRAY_TASK_ID --mins {int(base_mins)}
 """
     return step3, base_mins
-    
+
+def network_stats_script(config_path):
+    log_dir_name = config_path.split('.')[0]
+    step5 = f"""#!/bin/bash
+#SBATCH --job-name=step5
+#SBATCH --time={format_slurm_time(15)}
+#SBATCH --mem=64G
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/{log_dir_name}/network_stats_%j.out
+uv run -m network.compute_network_stats --config {config_path}
+"""
+    return step5
+
 def compute_network_pipeline(config_path):
     os.makedirs(f"logs/{config_path.split('.')[0]}", exist_ok=True)
     config = load_config(config_path)
@@ -283,6 +296,7 @@ def compute_network_pipeline(config_path):
     
         
     # 4. Submit global weights job (dependent on Step 2 and Step 3)
+    jid4 = None
     if "twera" in to_compute or "era" in to_compute:
         step4 = global_weights_script(config, config_path)
         if jid2 is not None:
@@ -299,6 +313,16 @@ def compute_network_pipeline(config_path):
         print(f"Submitted Step 4 (JID: {jid4}) hanging on Step 2 and Step 3")
     else:
         print("No global weights to compute")
+
+    # 5. Submit network stats job (dependent on Step 4)
+    if "twera" in to_compute:
+        step5 = network_stats_script(config_path)
+        dependencies = f"afterok:{jid4}"
+        submit_job(step5, dependencies) # Wait for the new twera weights to calculate the stats
+    elif (config.network_dir / "twera").exists() and not (config.network_dir / "neighbor_stats.csv").exists():
+        step5 = network_stats_script(config_path)
+        submit_job(step5) # Submit the job right away because twera already exists and we're not overwriting anything
+    
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Launch the CLT pipeline on SLURM.")

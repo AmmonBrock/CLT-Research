@@ -39,6 +39,7 @@ def compute_twera_weights(config):
             TWERA = coact_ratio * V.float()
 
             save_file({f"{source_layer}_{target_layer}": TWERA.half().cpu()}, str(save_path / f"{source_layer}_{target_layer}.safetensors"))
+        print(f"Layer {source_layer} completed")
 
     return True
 
@@ -67,6 +68,7 @@ def compute_era_weights(config):
 
             print(f"  Layer {source_layer} → {target_layer}: Mean ERA = {ERA.abs().mean():.6f}")
             save_file({f"{source_layer}_{target_layer}": ERA.half().cpu()}, str(save_path / f"{source_layer}_{target_layer}.safetensors"))
+        print(f"Layer {source_layer} completed")
     return True
 
 def main():
