@@ -90,7 +90,7 @@ def compute_coactivation_stats_for_layer(config, source_layer, mins_until_timeou
                 lap_remaining_time_estimate = time_per_batch_lap * remaining_batches
                 total_remaining_time_estimate = time_per_batch_total * remaining_batches
 
-                true_remaining_time = mins_until_timeout - ((total_time / 60.)) - 10.
+                true_remaining_time = mins_until_timeout - ((total_time / 60.))
                 if (lap_remaining_time_estimate > true_remaining_time) and (total_remaining_time_estimate > true_remaining_time):
                     # Raise an error to cancel the job and avoid wasting resources
                     raise TimeoutError(f"Estimated remaining time ({lap_remaining_time_estimate:.2f} mins by lap time, {total_remaining_time_estimate:.2f} mins by total time) exceeds the provided timeout threshold ({true_remaining_time:.2f} mins). Cancelling job to avoid wasting resources.")

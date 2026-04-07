@@ -241,7 +241,7 @@ def coactivation_script(config, config_path):
 #SBATCH --gpus=h200:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=8
-#SBATCH --array={array_string}%3
+#SBATCH --array={array_string}%1
 #SBATCH --output=logs/{log_dir_name}/coactivations_%A_%a.out
 uv run -m activations.coactivation --config {config_path} --source_layer $SLURM_ARRAY_TASK_ID --mins {int(base_mins)}
 """
