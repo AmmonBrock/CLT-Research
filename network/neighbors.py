@@ -19,6 +19,14 @@ class NetworkNeighbors():
             config = load_config(config)
         self.config = config
         self.root_folder = config.network_dir / root_folder_name 
+
+    def _compare_to_zero(self, weight_matrix, method):
+        if method == "top":
+            return weight_matrix > 0
+        elif method == "bottom":
+            return weight_matrix < 0
+        else: # abs_bottom
+            return abs(weight_matrix) > 0
         
     def get_num_nonzero_neighbors(self, downstream = True, method = "top"):
         num_nonzero_neighbors = np.zeros((self.config.n_layers, self.config.n_samples_per_layer))
