@@ -70,8 +70,9 @@ def filter_by_correct(config, df):
     assert len(snapshot_paths) > 0, f"No snapshots found for model {config.study_model_name} in cache directory {cache_dir}. Please make sure the model is downloaded and the path is correct."
     absolute_model_path = snapshot_paths[0]
     tokenizer = AutoTokenizer.from_pretrained(absolute_model_path, local_files_only = True)
+    print(config.study_model_name)
     model = AutoModelForCausalLM.from_pretrained(
-        model_name = config.study_model_name,
+        pretrained_model_name_or_path = config.study_model_name,
         torch_dtype=torch.bfloat16,
         local_files_only=True
     ).to(device)
@@ -106,6 +107,13 @@ def filter_by_correct(config, df):
         
 
         answers.extend(completions)
+
+    df["model_answer"] = answers
+    df.to_csv(config.CLT_dir / "interventions" / "results.csv", index=False)
+    return
+
+def human_eval(config, df):
+    answers = df.model_answer.tolist()
     
     human_evals = [None] * len(answers)
     assert(len(answers) == len(df)), "Number of answers does not match number of rows in dataframe"
@@ -192,6 +200,8 @@ def main():
     config_path = clt_dir / "configs" / args.config
     config = NetworkConfig.from_yaml(config_path)
     config.validate_params()
+
+    filter_by_correct(config, initial_df)
 
 
 

@@ -16,4 +16,5 @@ configs/*
 !configs/config_template.yaml
 data/*
 !data/dataloading.py
+*.csv
 
