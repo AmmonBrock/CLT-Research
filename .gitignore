@@ -17,4 +17,5 @@ configs/*
 data/*
 !data/dataloading.py
 *.csv
+.venv*
 
